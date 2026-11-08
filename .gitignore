@@ -2,3 +2,6 @@
 node_modules/
 *.tar.gz
 *.log
+_backup_v1/
+_backup_v2/
+_backup_v3/
