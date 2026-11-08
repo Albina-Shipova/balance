@@ -286,6 +286,10 @@ if (floatingTop) {
       animation.onfinish = animation.oncancel = () => active.delete(element);
     });
   }, {threshold: 0, rootMargin: '0px 0px -64px 0px'});
+  // Скрываем будущие появления ещё под непрозрачным экраном предзагрузки.
+  const prepare = () => targets.forEach(element => {
+    if (!seen.has(element)) element.classList.add('motion-pending');
+  });
   const observe = () => targets.forEach(element => {
     if (!seen.has(element)) {
       element.classList.add('motion-pending');
@@ -293,7 +297,10 @@ if (floatingTop) {
     }
   });
   const revealPending = () => targets.forEach(element => element.classList.remove('motion-pending'));
-  if (!reducedMotion.matches && !window.balanceLoading) observe();
+  if (!reducedMotion.matches) {
+    prepare();
+    if (!window.balanceLoading) observe();
+  }
   document.addEventListener('balance:ready', () => {
     if (!reducedMotion.matches) observe();
   }, {once: true});
@@ -302,7 +309,10 @@ if (floatingTop) {
       observer.disconnect();
       revealPending();
       active.forEach(animation => animation.cancel());
-    } else if (!window.balanceLoading) observe();
+    } else {
+      prepare();
+      if (!window.balanceLoading) observe();
+    }
   });
   document.addEventListener('focusin', event => {
     targets.forEach(element => {
