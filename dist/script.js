@@ -203,3 +203,13 @@ if (resultsTrack) {
   resultsTrack.addEventListener('lostpointercapture', finishResultsDrag);
   window.addEventListener('pointerup', finishResultsDrag);
 }
+
+const floatingTop = document.querySelector('.floating-top');
+if (floatingTop) {
+  const updateFloatingTop = () => { floatingTop.hidden = window.scrollY < 400; };
+  window.addEventListener('scroll', updateFloatingTop, {passive: true});
+  updateFloatingTop();
+  floatingTop.addEventListener('click', () => {
+    window.scrollTo({top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+  });
+}
