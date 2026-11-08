@@ -213,3 +213,115 @@ if (floatingTop) {
     window.scrollTo({top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
   });
 }
+
+// Одно появление на элемент; содержимое доступно и без поддержки анимаций.
+(() => {
+  if (!('IntersectionObserver' in window) || !Element.prototype.animate) return;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const selector = [
+    'h1', 'h2', 'h3', 'p', 'address', '.pill', '.location', '.hero-without',
+    '.hero-actions', '.rating', '.hero-photo', '.about-card', '.pink-card',
+    '.comfort-card', '.ritual-card', '.service-card', '.team-card', '.trial-card',
+    '.review-card', '.result-card', '.concern', '.concerns-figure', '.map',
+    '.amenities > div', '.stats > *', '.faq-list > details', '.catalog-group',
+    '.price-row', '.catalog-nav', '.tag-list', '.booking-phone', '.contact-phone',
+    '.contact-note', '.button', '.text-link', '.results-controls', '.review-controls',
+    'footer > *'
+  ].join(',');
+  const candidates = [...document.querySelectorAll(`main :is(${selector}), footer > *`)];
+  // Карточка появляется целиком: вложенный текст не получает двойного смещения.
+  const targets = candidates.filter(element => !element.parentElement.closest(selector));
+  const active = new Map();
+  const seen = new WeakSet();
+  const observer = new IntersectionObserver(entries => {
+    const groups = new Map();
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const element = entry.target;
+      observer.unobserve(element);
+      if (seen.has(element)) return;
+      seen.add(element);
+      if (reducedMotion.matches || element.contains(document.activeElement)) {
+        element.classList.remove('motion-pending');
+        return;
+      }
+      if (element.matches('.hero-reference')) {
+        const panels = element.querySelectorAll('.hero-panel, .hero-procedure');
+        const edges = [
+          ['66.6667%', '0%'],
+          ['34.2%', '33.3333%'],
+          ['0%', '0%']
+        ];
+        panels.forEach((panel, index) => {
+          const [right, left] = edges[index];
+          const animation = panel.animate([
+            {clipPath: `inset(0 ${right} 100% ${left})`},
+            {clipPath: `inset(0 ${right} 0% ${left})`}
+          ], {
+            duration: 650,
+            delay: index * 700,
+            easing: 'cubic-bezier(.25, .1, .25, 1)',
+            fill: 'backwards'
+          });
+          active.set(panel, animation);
+          animation.onfinish = animation.oncancel = () => active.delete(panel);
+        });
+        element.classList.remove('motion-pending');
+        return;
+      }
+      const index = groups.get(element.parentElement) || 0;
+      groups.set(element.parentElement, index + 1);
+      const visual = element.matches('.hero-photo, .map, .concerns-figure');
+      const animation = element.animate([
+        {opacity: 0, translate: `0 ${visual ? 44 : 32}px`},
+        {opacity: 1, translate: '0 0'}
+      ], {
+        duration: visual ? 1600 : 1300,
+        delay: Math.min(index, 3) * 120,
+        easing: 'cubic-bezier(.25, .1, .25, 1)',
+        fill: 'backwards'
+      });
+      active.set(element, animation);
+      element.classList.remove('motion-pending');
+      animation.onfinish = animation.oncancel = () => active.delete(element);
+    });
+  }, {threshold: 0, rootMargin: '0px 0px -64px 0px'});
+  const observe = () => targets.forEach(element => {
+    if (!seen.has(element)) {
+      element.classList.add('motion-pending');
+      observer.observe(element);
+    }
+  });
+  const revealPending = () => targets.forEach(element => element.classList.remove('motion-pending'));
+  if (!reducedMotion.matches && !window.balanceLoading) observe();
+  document.addEventListener('balance:ready', () => {
+    if (!reducedMotion.matches) observe();
+  }, {once: true});
+  reducedMotion.addEventListener('change', () => {
+    if (reducedMotion.matches) {
+      observer.disconnect();
+      revealPending();
+      active.forEach(animation => animation.cancel());
+    } else if (!window.balanceLoading) observe();
+  });
+  document.addEventListener('focusin', event => {
+    targets.forEach(element => {
+      if (element.contains(event.target)) {
+        element.classList.remove('motion-pending');
+        seen.add(element);
+        observer.unobserve(element);
+      }
+    });
+    active.forEach((animation, element) => {
+      if (element.contains(event.target)) animation.cancel();
+    });
+  });
+  window.addEventListener('beforeprint', () => {
+    observer.disconnect();
+    revealPending();
+    active.forEach(animation => animation.cancel());
+  });
+  window.addEventListener('afterprint', () => {
+    if (!reducedMotion.matches) observe();
+  });
+})();
